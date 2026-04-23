@@ -875,7 +875,7 @@
 
                     // Step 1: Call API to get current displayed images data
                     console.log('📱 Calling API to get current displayed images data...');
-                    const apiResponse = await fetch('http://localhost:3002/api/current-images');
+                    const apiResponse = await fetch('http://localhost:3000/api/current-images');
                     
                     if (!apiResponse.ok) {
                         throw new Error('Không thể lấy data ảnh hiện tại');
@@ -892,7 +892,7 @@
                     console.log(`📱 Got ${apiResult.count} displayed images, creating ZIP...`);
 
                     // Step 2: Download ZIP from server (now using displayed images data)
-                    const response = await fetch('http://localhost:3002/export');
+                    const response = await fetch('http://localhost:3000/export');
                     
                     if (!response.ok) {
                         throw new Error('Không thể tạo file ZIP');
