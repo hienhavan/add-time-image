@@ -1,0 +1,40 @@
+{
+  "name": "image-gps-processor",
+  "version": "1.0.0",
+  "description": "Batch processing tool to add standardized GPS and time text overlays to images",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js",
+    "cli": "node image_gps_processor.js",
+    "test": "node test.js"
+  },
+  "keywords": [
+    "image",
+    "gps",
+    "exif",
+    "batch",
+    "processing",
+    "overlay",
+    "text",
+    "web",
+    "ui"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "archiver": "^7.0.1",
+    "cors": "^2.8.6",
+    "exif-parser": "^0.1.12",
+    "exiftool-vendored": "^35.18.0",
+    "express": "^4.18.2",
+    "jimp": "^1.6.1",
+    "multer": "^1.4.5-lts.1",
+    "sharp": "^0.32.6",
+    "tesseract.js": "^7.0.0"
+  },
+  "engines": {
+    "node": ">=14.0.0"
+  },
+  "packageManager": "npm@10.8.3+sha512.d08425c8062f56d43bb8e84315864218af2492eb769e1f1ca40740f44e85bd148969382d651660363942e5909cb7ffcbef7ca0ae963ddc2c57a51243b4da8f56"
+}

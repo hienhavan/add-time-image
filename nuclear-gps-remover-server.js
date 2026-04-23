@@ -1,0 +1,604 @@
+const express = require('express');
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
+const sharp = require('sharp');
+const exifParser = require('exif-parser');
+const archiver = require('archiver');
+const cors = require('cors');
+const exiftool = require('exiftool-vendored').exiftool;
+
+const app = express();
+const PORT = 3002;
+
+// Enable CORS
+app.use(cors({
+    origin: ['http://localhost:3000', 'http://localhost:3002'],
+    credentials: true
+}));
+
+// Serve static files
+app.use(express.static('public'));
+app.use(express.json());
+
+// Create output directory
+const outputDir = path.join(__dirname, 'output');
+if (!fs.existsSync(outputDir)) {
+    fs.mkdirSync(outputDir, { recursive: true });
+}
+
+// Configure multer
+const storage = multer.memoryStorage();
+const upload = multer({ 
+    storage: storage,
+    fileFilter: (req, file, cb) => {
+        if (file.mimetype.startsWith('image/')) {
+            cb(null, true);
+        } else {
+            cb(new Error('Chỉ chấp nhận file ảnh!'), false);
+        }
+    },
+    limits: {
+        fileSize: 50 * 1024 * 1024,
+        files: 100
+    }
+});
+
+// Clean output directory
+function cleanOutputDirectory() {
+    console.log('🧹 Cleaning output directory...');
+    try {
+        if (fs.existsSync(outputDir)) {
+            const files = fs.readdirSync(outputDir);
+            files.forEach(file => {
+                const filePath = path.join(outputDir, file);
+                fs.unlinkSync(filePath);
+                console.log(`✅ Deleted: ${file}`);
+            });
+        }
+        console.log('🧹 Cleaning completed');
+    } catch (error) {
+        console.error('❌ Error cleaning:', error);
+    }
+}
+
+// Store current batch images data
+let currentBatchImages = [];
+
+class NuclearGPSRemover {
+    constructor(config = {}) {
+        this.config = {
+            fallback_gps: { latitude: 21.0285, longitude: 105.8542 },
+            text_position: 'bottom-left',
+            rectangle_color: 'black',
+            text_color: 'white',
+            font_size: 32,
+            padding: 20,
+            rectangle_height_percent: 0.3,
+            rectangle_width_percent: 0.4,
+            ...config
+        };
+    }
+
+    // Nuclear EXIF data removal using exiftool
+    async removeEXIFData(imageBuffer) {
+        try {
+            console.log('🔥 NUCLEAR: Using exiftool to remove ALL EXIF data...');
+            
+            // Write buffer to temp file
+            const tempInputPath = path.join(__dirname, 'temp_input.jpg');
+            const tempOutputPath = path.join(__dirname, 'temp_output.jpg');
+            
+            fs.writeFileSync(tempInputPath, imageBuffer);
+            
+            // Use exiftool to strip ALL metadata
+            await exiftool.write(tempInputPath, {
+                all: '', // Remove all tags
+                'exif:all': '', // Remove EXIF
+                'xmp:all': '', // Remove XMP
+                'iptc:all': '', // Remove IPTC
+                'icc:all': '', // Remove ICC profile
+            }, tempOutputPath);
+            
+            // Read the cleaned image
+            const cleanedBuffer = fs.readFileSync(tempOutputPath);
+            
+            // Clean up temp files
+            fs.unlinkSync(tempInputPath);
+            fs.unlinkSync(tempOutputPath);
+            
+            console.log('✅ NUCLEAR: EXIF data completely removed');
+            return cleanedBuffer;
+            
+        } catch (error) {
+            console.error('❌ Error with exiftool:', error);
+            // Fallback to Sharp
+            return await sharp(imageBuffer).jpeg({ quality: 95, force: true }).toBuffer();
+        }
+    }
+
+    // NUCLEAR OPTION: Complete black overlay on all possible GPS locations
+    async applyNuclearCoverage(imageBuffer) {
+        try {
+            console.log('💣💣💣 NUCLEAR OPTION: Applying complete black coverage...');
+            
+            const image = sharp(imageBuffer);
+            const metadata = await image.metadata();
+            const width = metadata.width;
+            const height = metadata.height;
+            
+            console.log(`💣 Image dimensions: ${width}x${height}`);
+            
+            // Create NUCLEAR coverage - cover ALL possible GPS locations
+            const svgRectangles = `
+                <!-- COMPLETE TOP COVERAGE -->
+                <rect x="0" y="0" width="${width}" height="${height * 0.25}" fill="black" />
+                
+                <!-- COMPLETE BOTTOM COVERAGE -->
+                <rect x="0" y="${height - (height * 0.25)}" width="${width}" height="${height * 0.25}" fill="black" />
+                
+                <!-- COMPLETE LEFT COVERAGE -->
+                <rect x="0" y="0" width="${width * 0.3}" height="${height}" fill="black" />
+                
+                <!-- COMPLETE RIGHT COVERAGE -->
+                <rect x="${width - (width * 0.3)}" y="0" width="${width * 0.3}" height="${height}" fill="black" />
+                
+                <!-- EXTREME CORNER COVERAGE -->
+                <rect x="${width - (width * 0.8)}" y="0" width="${width * 0.8}" height="${height * 0.5}" fill="black" />
+                <rect x="${width - (width * 0.8)}" y="${height - (height * 0.4)}" width="${width * 0.8}" height="${height * 0.4}" fill="black" />
+                <rect x="0" y="0" width="${width * 0.5}" height="${height * 0.4}" fill="black" />
+                <rect x="0" y="${height - (height * 0.3)}" width="${width * 0.5}" height="${height * 0.3}" fill="black" />
+                
+                <!-- CENTER COVERAGE (for centered GPS) -->
+                <rect x="${width * 0.3}" y="${height * 0.1}" width="${width * 0.4}" height="${height * 0.15}" fill="black" />
+                <rect x="${width * 0.3}" y="${height - (height * 0.25)}" width="${width * 0.4}" height="${height * 0.15}" fill="black" />
+                
+                <!-- EXTRA COVERAGE FOR STUBBORN TEXT -->
+                <rect x="${width * 0.1}" y="${height * 0.05}" width="${width * 0.8}" height="${height * 0.1}" fill="black" />
+                <rect x="${width * 0.1}" y="${height - (height * 0.15)}" width="${width * 0.8}" height="${height * 0.1}" fill="black" />
+            `;
+            
+            const svg = `
+                <svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg">
+                    ${svgRectangles}
+                </svg>
+            `;
+            
+            console.log(`💣 NUCLEAR: Applied ${svgRectangles.split('</rect>').length} black rectangles`);
+            
+            const overlayBuffer = Buffer.from(svg);
+            return await image
+                .composite([{ input: overlayBuffer, top: 0, left: 0 }])
+                .jpeg({ quality: 95, force: true })
+                .toBuffer();
+            
+        } catch (error) {
+            console.error('❌ NUCLEAR coverage failed:', error);
+            return imageBuffer;
+        }
+    }
+
+    // Alternative: Complete image blackening (most aggressive)
+    async applyTotalBlackening(imageBuffer) {
+        try {
+            console.log('💥💥💥 TOTAL BLACKENING: Most aggressive option...');
+            
+            const image = sharp(imageBuffer);
+            const metadata = await image.metadata();
+            const width = metadata.width;
+            const height = metadata.height;
+            
+            // Create a completely black image
+            const blackImage = await sharp({
+                create: {
+                    width: width,
+                    height: height,
+                    channels: 3,
+                    background: { r: 0, g: 0, b: 0 }
+                }
+            }).jpeg().toBuffer();
+            
+            console.log('💥 TOTAL BLACKENING: Image completely blackened');
+            return blackImage;
+            
+        } catch (error) {
+            console.error('❌ Total blackening failed:', error);
+            return imageBuffer;
+        }
+    }
+
+    async addTextOverlay(imageBuffer, lat, lon, timeStr, action = 'add') {
+        try {
+            let processedBuffer = imageBuffer;
+            
+            if (action === 'remove') {
+                console.log('💣💣💣 NUCLEAR GPS REMOVAL - Most aggressive approach...');
+                
+                // Step 1: Remove EXIF data with exiftool
+                processedBuffer = await this.removeEXIFData(processedBuffer);
+                
+                // Step 2: Apply NUCLEAR coverage
+                console.log('💣 Applying NUCLEAR black coverage...');
+                processedBuffer = await this.applyNuclearCoverage(processedBuffer);
+                
+                // Step 3: If nuclear doesn't work, try total blackening
+                console.log('💥 Applying TOTAL BLACKENING as fallback...');
+                // processedBuffer = await this.applyTotalBlackening(processedBuffer);
+                
+                console.log('💣💣💣 NUCLEAR GPS removal completed');
+                
+            } else {
+                // Add new GPS text (normal flow)
+                const image = sharp(processedBuffer);
+                const metadata = await image.metadata();
+                const width = metadata.width;
+                const height = metadata.height;
+                
+                let rectX, rectY, rectWidth, rectHeight;
+                
+                switch (this.config.text_position) {
+                    case 'top-right':
+                        rectX = width - (width * this.config.rectangle_width_percent);
+                        rectY = 0;
+                        rectWidth = width * this.config.rectangle_width_percent;
+                        rectHeight = height * this.config.rectangle_height_percent;
+                        break;
+                    case 'bottom-left':
+                        rectX = 0;
+                        rectY = height - (height * 0.15);
+                        rectWidth = width * 0.6;
+                        rectHeight = height * 0.15;
+                        break;
+                    case 'bottom-right':
+                        rectX = width - (width * 0.6);
+                        rectY = height - (height * 0.15);
+                        rectWidth = width * 0.6;
+                        rectHeight = height * 0.15;
+                        break;
+                    case 'top-left':
+                        rectX = 0;
+                        rectY = 0;
+                        rectWidth = width * 0.4;
+                        rectHeight = height * 0.15;
+                        break;
+                    default:
+                        rectX = width - (width * this.config.rectangle_width_percent);
+                        rectY = 0;
+                        rectWidth = width * this.config.rectangle_width_percent;
+                        rectHeight = height * this.config.rectangle_height_percent;
+                        break;
+                }
+                
+                const textLines = [
+                    `Lat: ${lat.toFixed(6)}, Lon: ${lon.toFixed(6)}`,
+                    `Time: ${timeStr}`
+                ];
+
+                let svgText = '';
+                const fontSize = this.config.font_size;
+                const padding = this.config.padding;
+                let textY = rectY + padding + fontSize;
+
+                textLines.forEach((line, index) => {
+                    const textX = rectX + padding;
+                    svgText += `<text x="${textX}" y="${textY}" fill="${this.config.text_color}" font-size="${fontSize}" font-family="Arial, sans-serif" font-weight="bold">${line}</text>`;
+                    textY += fontSize + padding / 2;
+                });
+                
+                const svgRectangles = `<rect x="${rectX}" y="${rectY}" width="${rectWidth}" height="${rectHeight}" fill="black" />`;
+                
+                const svg = `
+                    <svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg">
+                        ${svgRectangles}
+                        ${svgText}
+                    </svg>
+                `;
+
+                const overlayBuffer = Buffer.from(svg);
+                processedBuffer = await image
+                    .composite([{ input: overlayBuffer, top: 0, left: 0 }])
+                    .jpeg({ quality: 95 })
+                    .toBuffer();
+            }
+
+            return processedBuffer;
+
+        } catch (error) {
+            console.error('❌ Error in nuclear processing:', error);
+            throw error;
+        }
+    }
+
+    getExifData(buffer) {
+        try {
+            const parser = exifParser.create(buffer);
+            const result = parser.parse();
+            return result;
+        } catch (error) {
+            console.error(`Error reading EXIF: ${error.message}`);
+            return {};
+        }
+    }
+
+    convertToDegrees(gpsValue) {
+        if (!gpsValue || !Array.isArray(gpsValue) || gpsValue.length < 3) {
+            return 0;
+        }
+        const degrees = parseFloat(gpsValue[0]);
+        const minutes = parseFloat(gpsValue[1]);
+        const seconds = parseFloat(gpsValue[2]);
+        return degrees + (minutes / 60.0) + (seconds / 3600.0);
+    }
+
+    getGpsCoordinates(exifData) {
+        try {
+            if (!exifData || !exifData.tags || !exifData.tags.GPSLatitude || !exifData.tags.GPSLongitude) {
+                return [null, null];
+            }
+            const lat = this.convertToDegrees(exifData.tags.GPSLatitude);
+            const lon = this.convertToDegrees(exifData.tags.GPSLongitude);
+            const latRef = exifData.tags.GPSLatitudeRef;
+            const lonRef = exifData.tags.GPSLongitudeRef;
+            const finalLat = latRef === 'S' ? -lat : lat;
+            const finalLon = lonRef === 'W' ? -lon : lon;
+            return [finalLat, finalLon];
+        } catch (error) {
+            console.error(`Error parsing GPS data: ${error.message}`);
+            return [null, null];
+        }
+    }
+
+    getDateTime(exifData) {
+        try {
+            if (exifData && exifData.tags && exifData.tags.DateTimeOriginal) {
+                const exifDate = new Date(exifData.tags.DateTimeOriginal);
+                if (!isNaN(exifDate.getTime())) {
+                    return this.formatDate(exifDate);
+                }
+            }
+            return this.formatDate(new Date());
+        } catch (error) {
+            console.error(`Error getting datetime: ${error.message}`);
+            return this.formatDate(new Date());
+        }
+    }
+
+    formatDate(date) {
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        const hours = String(date.getHours()).padStart(2, '0');
+        const minutes = String(date.getMinutes()).padStart(2, '0');
+        const seconds = String(date.getSeconds()).padStart(2, '0');
+        return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+    }
+
+    async processImage(imageBuffer, filename, action, customGps = null) {
+        try {
+            const exifData = this.getExifData(imageBuffer);
+            const [lat, lon] = this.getGpsCoordinates(exifData);
+            const timeStr = this.getDateTime(exifData);
+
+            let finalLat, finalLon;
+
+            if (action === 'add') {
+                if (customGps) {
+                    finalLat = customGps.latitude;
+                    finalLon = customGps.longitude;
+                } else if (lat !== null && lon !== null) {
+                    finalLat = lat;
+                    finalLon = lon;
+                } else {
+                    finalLat = this.config.fallback_gps.latitude;
+                    finalLon = this.config.fallback_gps.longitude;
+                }
+            } else {
+                finalLat = 0;
+                finalLon = 0;
+            }
+
+            const processedBuffer = await this.addTextOverlay(
+                imageBuffer, finalLat, finalLon, timeStr, action
+            );
+
+            const outputPath = path.join(outputDir, filename);
+            fs.writeFileSync(outputPath, processedBuffer);
+            console.log(`💣 Saved: ${filename}`);
+
+            const thumbnailBuffer = await sharp(processedBuffer)
+                .resize(200, 200, { fit: 'cover' })
+                .jpeg({ quality: 80 })
+                .toBuffer();
+            
+            const thumbnailBase64 = `data:image/jpeg;base64,${thumbnailBuffer.toString('base64')}`;
+
+            return {
+                success: true,
+                filename,
+                thumbnail: thumbnailBase64,
+                status: action === 'add' ? 'Đã thêm GPS' : 'Đã xóa GPS cũ (NUCLEAR)',
+                gps: action === 'add' ? { lat: finalLat, lon: finalLon } : null,
+                time: timeStr
+            };
+
+        } catch (error) {
+            return {
+                success: false,
+                filename,
+                error: error.message,
+                status: 'Lỗi xử lý'
+            };
+        }
+    }
+}
+
+// API endpoint to get current displayed images data
+app.get('/api/current-images', (req, res) => {
+    try {
+        console.log('📱 API: Getting current displayed images data...');
+        console.log(`📱 API: Returning ${currentBatchImages.length} images from current batch`);
+        
+        res.json({
+            success: true,
+            images: currentBatchImages,
+            count: currentBatchImages.length
+        });
+    } catch (error) {
+        console.error('❌ API error:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// Process images
+app.post('/process', upload.array('images'), async (req, res) => {
+    try {
+        console.log('💣💣💣 NUCLEAR Processing request started');
+        
+        const { action, position, latitude, longitude, fontSize } = req.body;
+        const files = req.files;
+
+        if (!files || files.length === 0) {
+            return res.status(400).json({ 
+                success: false, 
+                error: 'Không có file nào được tải lên' 
+            });
+        }
+
+        // Clean before processing
+        cleanOutputDirectory();
+
+        console.log(`📁 Processing ${files.length} images with NUCLEAR tools`);
+
+        const config = {
+            text_position: action === 'remove' ? 'top-right' : (position || 'bottom-left'),
+            font_size: parseInt(fontSize) || 32,
+            fallback_gps: {
+                latitude: parseFloat(latitude) || 21.0285,
+                longitude: parseFloat(longitude) || 105.8542
+            }
+        };
+
+        const processor = new NuclearGPSRemover(config);
+        const results = [];
+
+        for (const file of files) {
+            console.log(`\n💣💣💣 Nuclear processing: ${file.originalname}`);
+            const result = await processor.processImage(
+                file.buffer, file.originalname, action,
+                action === 'add' ? config.fallback_gps : null
+            );
+            results.push(result);
+            console.log(`✅ Nuclear completed: ${file.originalname} - ${result.status}`);
+        }
+
+        // Store current batch images data for API
+        currentBatchImages = results.filter(r => r.success);
+        console.log(`📱 Stored ${currentBatchImages.length} images in current batch data`);
+
+        console.log(`✅💣💣💣 Nuclear processed ${results.length} images`);
+
+        res.json({
+            success: true,
+            results: results,
+            processed: results.filter(r => r.success).length,
+            failed: results.filter(r => !r.success).length
+        });
+
+    } catch (error) {
+        console.error('❌ Nuclear processing error:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// Export ZIP using current displayed images data
+app.get('/export', async (req, res) => {
+    try {
+        console.log('📦 Export request started');
+        
+        // Use current displayed images data instead of file system
+        console.log('📱 Using current displayed images data for ZIP creation...');
+        console.log(`📱 Current batch has ${currentBatchImages.length} images`);
+
+        if (currentBatchImages.length === 0) {
+            console.log('❌ No current displayed images found');
+            return res.status(404).json({ error: 'No processed images found' });
+        }
+
+        // Create ZIP from current displayed images data
+        const archive = archiver('zip', { zlib: { level: 9 } });
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
+        const filename = `processed_images_${timestamp}.zip`;
+        
+        res.setHeader('Content-Type', 'application/zip');
+        res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+        
+        console.log(`📦 Creating ZIP from ${currentBatchImages.length} displayed images: ${filename}`);
+        
+        archive.on('error', (err) => {
+            console.error('❌ Archive error:', err);
+            throw err;
+        });
+
+        archive.on('end', () => {
+            console.log(`✅ ZIP created from ${currentBatchImages.length} displayed images, size: ${archive.pointer()} bytes`);
+        });
+
+        archive.pipe(res);
+
+        // Add images from current displayed data
+        currentBatchImages.forEach((image, index) => {
+            const filePath = path.join(outputDir, image.filename);
+            console.log(`📎 Adding displayed image to ZIP: ${image.filename}`);
+            
+            // Check if file exists in output directory
+            if (fs.existsSync(filePath)) {
+                archive.file(filePath, { name: image.filename });
+            } else {
+                console.log(`⚠️ File not found in output directory: ${image.filename}`);
+            }
+        });
+
+        archive.finalize();
+
+    } catch (error) {
+        console.error('❌ Export error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Get processed image
+app.get('/output/:filename', (req, res) => {
+    const filename = req.params.filename;
+    const filePath = path.join(outputDir, filename);
+    
+    if (fs.existsSync(filePath)) {
+        res.sendFile(filePath);
+    } else {
+        res.status(404).json({ error: 'File not found' });
+    }
+});
+
+// Clean endpoint
+app.post('/clean', (req, res) => {
+    try {
+        cleanOutputDirectory();
+        currentBatchImages = [];
+        res.json({ success: true, message: 'Output directory cleaned' });
+    } catch (error) {
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// Start server
+app.listen(PORT, () => {
+    console.log(`💣💣💣💣💣 NUCLEAR GPS REMOVER SERVER running at http://localhost:${PORT}`);
+    console.log(`📁 Output directory: ${outputDir}`);
+    console.log('🔗 ZIP export: http://localhost:' + PORT + '/export');
+    console.log('💣💣💣💣💣 NUCLEAR MODE ACTIVATED 💣💣💣💣💣');
+    console.log('📦 ZIP: Images only, no JSON');
+    console.log('🔧 EXIF: ExifTool for complete metadata removal');
+    console.log('💥 COVERAGE: Complete black overlay (85% of image)');
+    console.log('🚨 WARNING: This will cover most of the image area');
+});
+
+module.exports = app;

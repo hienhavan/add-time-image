@@ -1,0 +1,22 @@
+{
+  "fallback_gps": {
+    "latitude": 21.0285,
+    "longitude": 105.8542,
+    "description": "Hanoi, Vietnam coordinates"
+  },
+  "fallback_time_format": "%Y-%m-%d %H:%M:%S",
+  "text_position": "bottom-left",
+  "rectangle_color": "black",
+  "text_color": "white",
+  "font_size": 24,
+  "padding": 10,
+  "rectangle_height_percent": 0.15,
+  "description": "Configuration for image GPS processor",
+  "text_position_options": ["bottom-left", "bottom-right", "bottom-center"],
+  "notes": {
+    "fallback_gps": "Used when image has no GPS metadata",
+    "text_position": "Where to place the text overlay",
+    "rectangle_height_percent": "Height of black rectangle as percentage of image height",
+    "font_size": "Text font size in pixels"
+  }
+}
