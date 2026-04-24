@@ -608,10 +608,19 @@
                         <input type="text" id="locationInput" value="Hà Nội" placeholder="Quảng Ninh, Hà Long, Thái Nguyên..." 
                                style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px;">
                     </div>
-                    <div>
+                    <div style="margin-bottom:15px;">
                         <label style="display: block; margin-bottom:5px; color: #666;">Font size:</label>
                         <input type="number" id="fontSizeInput" value="24" min="10" max="72" 
                                style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px;">
+                    </div>
+                    <div style="margin-bottom:15px;">
+                        <label style="display: block; margin-bottom:5px; color: #666;">Detection Mode:</label>
+                        <select id="detectionModeSelect" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px;">
+                            <option value="simple">🔥 Simple Mode (Chắc chắn xóa - Aggressive)</option>
+                            <option value="fast">⚡ Fast Mode (Nhanh - Regex based)</option>
+                            <option value="ai" selected>🤖 AI Mode (Chính xác - OCR based)</option>
+                        </select>
+                        <small style="color: #999; font-size: 0.8em;">Simple: ~2-3s | Fast: ~1-2s | AI: ~3-5s</small>
                     </div>
                 </div>
             </section>
@@ -806,6 +815,7 @@
                 formData.append('inputTime', document.getElementById('timeInput').value);
                 formData.append('inputDate', document.getElementById('dateInput').value);
                 formData.append('inputLocation', document.getElementById('locationInput').value);
+                formData.append('detectionMode', document.getElementById('detectionModeSelect').value);
 
                 try {
                     const response = await fetch('/process', {

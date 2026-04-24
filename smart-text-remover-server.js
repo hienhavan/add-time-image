@@ -9,6 +9,9 @@ const cors = require('cors');
 const exiftool = require('exiftool-vendored').exiftool;
 const Jimp = require('jimp');
 const Tesseract = require('tesseract.js');
+const AIGPSDetector = require('./ai-gps-detector');
+const FastGPSDetector = require('./fast-gps-detector');
+const SimpleTextRemover = require('./simple-text-remover');
 
 const app = express();
 const PORT = 3000;
@@ -70,17 +73,51 @@ let currentBatchImages = [];
 class SmartTextRemover {
     constructor(config = {}) {
         this.config = {
-            fallback_gps: { latitude: 21.0285, longitude: 105.8542 },
-            text_position: 'bottom-left',
-            rectangle_color: 'black',
-            text_color: 'white',
-            font_size: 32,
-            padding: 20,
-            rectangle_height_percent: 0.3,
-            rectangle_width_percent: 0.4,
-            border_percent: 0.3, // 30% border scanning
-            ...config
+            text_position: config.text_position || 'bottom-left',
+            font_size: config.font_size || 32,
+            text_color: config.text_color || 'white',
+            rectangle_color: config.rectangle_color || 'black',
+            rectangle_width_percent: config.rectangle_width_percent || 0.4,
+            rectangle_height_percent: config.rectangle_height_percent || 0.15,
+            padding: config.padding || 10,
+            border_percent: config.border_percent || 0.3,
+            fallback_gps: config.fallback_gps || {
+                latitude: 21.0285,
+                longitude: 105.8542
+            },
+            use_ai_detection: config.use_ai_detection !== false
         };
+        
+        // Initialize GPS detector based on mode
+        if (this.config.use_ai_detection) {
+            const detectionMode = this.config.detection_mode || 'ai';
+            
+            if (detectionMode === 'simple') {
+                console.log('🔥 Using Simple Text Remover (Aggressive)...');
+                this.aiDetector = new SimpleTextRemover({
+                    borderPercent: 0.3,
+                    confidence: 30,
+                    debug: true
+                });
+            } else if (detectionMode === 'fast') {
+                console.log('⚡ Using Fast GPS Detector...');
+                this.aiDetector = new FastGPSDetector({
+                    confidence: 0.6,
+                    borderPercent: 0.25,
+                    enableSafety: true,
+                    debug: false,
+                    mode: 'fast'
+                });
+            } else {
+                console.log('🤖 Using AI GPS Detector...');
+                this.aiDetector = new AIGPSDetector({
+                    confidence: 0.7,
+                    borderPercent: 0.3,
+                    enableSafety: true,
+                    debug: true
+                });
+            }
+        }
     }
 
     // EXIF data removal
@@ -90,6 +127,10 @@ class SmartTextRemover {
             
             const tempInputPath = path.join(__dirname, 'temp_input.jpg');
             const tempOutputPath = path.join(__dirname, 'temp_output.jpg');
+            
+            // Ensure temp files are cleaned up first
+            if (fs.existsSync(tempInputPath)) fs.unlinkSync(tempInputPath);
+            if (fs.existsSync(tempOutputPath)) fs.unlinkSync(tempOutputPath);
             
             fs.writeFileSync(tempInputPath, imageBuffer);
             
@@ -363,42 +404,67 @@ class SmartTextRemover {
             let processedBuffer = imageBuffer;
             
             if (action === 'remove') {
-                console.log('🔍🎨 SMART TEXT REMOVER - Detect and remove text ONLY, keep background...');
+                console.log('🤖 AI-POWERED GPS TEXT REMOVER - Advanced detection with safety...');
                 
                 // Step 1: Remove EXIF data
                 processedBuffer = await this.removeEXIFData(processedBuffer);
                 
-                // Step 2: Smart text detection in 30% borders
-                const textRegions = await this.detectTextInBorders(processedBuffer);
-                
-                // Step 3: Character-level detection as backup
-                const characterRegions = await this.detectCharacterLevelText(processedBuffer);
-                
-                // Combine all detected text
-                const allTextRegions = [...textRegions, ...characterRegions];
-                
-                // Remove duplicates
-                const uniqueRegions = [];
-                const seen = new Set();
-                
-                for (const region of allTextRegions) {
-                    const key = `${Math.floor(region.x / 5)}_${Math.floor(region.y / 5)}`;
-                    if (!seen.has(key)) {
-                        seen.add(key);
-                        uniqueRegions.push(region);
+                // Step 2: AI-powered GPS text detection
+                let gpsTextRegions = [];
+                if (this.config.use_ai_detection && this.aiDetector) {
+                    const detectionMode = this.config.detection_mode || 'ai';
+                    console.log(`🧠 Using ${detectionMode.toUpperCase()} GPS Detector...`);
+                    
+                    if (detectionMode === 'simple') {
+                        // Simple mode uses different method
+                        processedBuffer = await this.aiDetector.removeAllTextFromBorders(processedBuffer);
+                    } else {
+                        // Fast and AI modes use GPS detection
+                        gpsTextRegions = await this.aiDetector.detectGPSText(processedBuffer);
+                        
+                        if (gpsTextRegions.length > 0) {
+                            console.log(`🎯 ${detectionMode.toUpperCase()} detected ${gpsTextRegions.length} GPS text regions`);
+                            console.log('🛡️ Safety filters applied - only GPS text will be removed');
+                            
+                            // Debug: Log detected regions
+                            gpsTextRegions.forEach((region, index) => {
+                                console.log(`  📍 Region ${index + 1}: "${region.text}" at (${region.x}, ${region.y}) confidence: ${region.confidence || region.gpsProbability}`);
+                            });
+                            
+                            // Create mask for inpainting
+                            const maskRegions = this.aiDetector.createMaskFromRegions(processedBuffer, gpsTextRegions);
+                            
+                            // Advanced inpainting
+                            processedBuffer = await this.removeDetectedText(processedBuffer, gpsTextRegions);
+                        } else {
+                            console.log('🔍 No GPS text detected by AI, image unchanged');
+                        }
+                    }
+                } else {
+                    // Fallback to original detection method
+                    console.log('🔄 Using fallback text detection...');
+                    
+                    const textRegions = await this.detectTextInBorders(processedBuffer);
+                    const characterRegions = await this.detectCharacterLevelText(processedBuffer);
+                    const allTextRegions = [...textRegions, ...characterRegions];
+                    
+                    const uniqueRegions = [];
+                    const seen = new Set();
+                    
+                    for (const region of allTextRegions) {
+                        const key = `${Math.floor(region.x / 5)}_${Math.floor(region.y / 5)}`;
+                        if (!seen.has(key)) {
+                            seen.add(key);
+                            uniqueRegions.push(region);
+                        }
+                    }
+                    
+                    if (uniqueRegions.length > 0) {
+                        processedBuffer = await this.removeDetectedText(processedBuffer, uniqueRegions);
                     }
                 }
                 
-                console.log(`🔍🎨 Total unique text regions to remove: ${uniqueRegions.length}`);
-                
-                if (uniqueRegions.length > 0) {
-                    console.log(`🎨 Removing detected text while preserving background...`);
-                    processedBuffer = await this.removeDetectedText(processedBuffer, uniqueRegions);
-                } else {
-                    console.log('⚠️ No text detected, image unchanged');
-                }
-                
-                console.log('🔍🎨 SMART TEXT REMOVAL completed - Background preserved');
+                console.log('🤖 AI-POWERED GPS TEXT REMOVAL completed');
                 
             } else {
                 // Add new GPS text (enhanced flow)
@@ -636,7 +702,7 @@ app.post('/process', upload.array('images'), async (req, res) => {
     try {
         console.log('🔍🎨 SMART TEXT REMOVER Processing request started');
         
-        const { action, position, latitude, longitude, fontSize, inputTime, inputDate, inputLocation } = req.body;
+        const { action, position, latitude, longitude, fontSize, inputTime, inputDate, inputLocation, detectionMode } = req.body;
         const files = req.files;
 
         if (!files || files.length === 0) {
@@ -703,7 +769,9 @@ app.post('/process', upload.array('images'), async (req, res) => {
             },
             input_time: finalTime,
             input_date: finalDate,
-            input_location: finalLocation
+            input_location: finalLocation,
+            use_ai_detection: action === 'remove', // Enable AI for removal only
+            detection_mode: detectionMode || 'ai' // Pass detection mode to detector
         };
 
         const processor = new SmartTextRemover(config);
@@ -788,6 +856,16 @@ app.post('/process', upload.array('images'), async (req, res) => {
                 finalDate,
                 finalLocation
             );
+            
+            console.log(`✅ GPS Addition Result:`, {
+                action: action,
+                imageLat: imageLat,
+                imageLon: imageLon,
+                imageTime: imageTime,
+                finalDate: finalDate,
+                finalLocation: finalLocation,
+                success: result.success
+            });
             results.push(result);
             console.log(`✅ Smart text completed: ${file.originalname} - ${result.status}`);
         }
