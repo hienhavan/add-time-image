@@ -7,7 +7,8 @@
     "start": "node server.js",
     "dev": "node server.js",
     "cli": "node image_gps_processor.js",
-    "test": "node test.js"
+    "test": "node test.js",
+    "postinstall": "npm rebuild sharp"
   },
   "keywords": [
     "image",
