@@ -2,7 +2,7 @@ services:
   - type: web
     name: timemark-watermark
     env: node
-    buildCommand: npm install
+    buildCommand: npm install --platform=linux --arch=x64 --cpu=x64 sharp && npm install
     startCommand: node server.js
     envVars:
       - key: PORT
