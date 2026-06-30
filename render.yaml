@@ -7,6 +7,4 @@ services:
     envVars:
       - key: PORT
         value: 3000
-      - key: NODE_VERSION
-        value: 20
     plan: free
