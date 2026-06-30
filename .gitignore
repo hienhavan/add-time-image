@@ -1,0 +1,49 @@
+# Dependencies
+node_modules/
+package-lock.json
+
+# Output directory
+output/
+
+# Temporary files
+*.tmp
+temp_*
+*.jpg_original
+*.zip
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Trained data files (too large for git)
+*.traineddata
+
+# Test files
+test-server.js
+test.js
+test-cleaning.js
+debug.js
+debug-clean.js
+debug-server.js
+
+# Alternative server files (keep only server.js)
+*-server.js
+!server.js

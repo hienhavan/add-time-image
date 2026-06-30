@@ -2,10 +2,10 @@
   "name": "image-gps-processor",
   "version": "1.0.0",
   "description": "Batch processing tool to add standardized GPS and time text overlays to images",
-  "main": "smart-text-remover-server.js",
+  "main": "server.js",
   "scripts": {
-    "start": "node smart-text-remover-server.js",
-    "dev": "node smart-text-remover-server.js",
+    "start": "node server.js",
+    "dev": "node server.js",
     "cli": "node image_gps_processor.js",
     "test": "node test.js"
   },
