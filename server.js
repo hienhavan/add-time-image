@@ -2,7 +2,7 @@ const express = require('express');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
-const Jimp = require('jimp');
+const sharp = require('sharp');
 const exifParser = require('exif-parser');
 const archiver = require('archiver');
 
@@ -143,9 +143,10 @@ class ImageProcessor {
 
     async addTextOverlay(imageBuffer, lat, lon, timeStr, action = 'add') {
         try {
-            const image = await Jimp.read(imageBuffer);
-            const width = image.bitmap.width;
-            const height = image.bitmap.height;
+            const image = sharp(imageBuffer);
+            const metadata = await image.metadata();
+            const width = metadata.width;
+            const height = metadata.height;
             
             // Calculate text position
             const padding = 15;
@@ -323,11 +324,11 @@ class ImageProcessor {
             `;
 
             const overlayBuffer = Buffer.from(svg);
-            const overlayImage = await Jimp.read(overlayBuffer);
             
-            image.composite(overlayImage, 0, 0);
-            
-            return await image.getBufferAsync(Jimp.MIME_JPEG);
+            return await image
+                .composite([{ input: overlayBuffer, top: 0, left: 0 }])
+                .jpeg({ quality: 95 })
+                .toBuffer();
 
         } catch (error) {
             console.error(`Error adding text overlay: ${error.message}`);
@@ -383,9 +384,10 @@ class ImageProcessor {
             fileMapping.set(processedFilename, originalFilename);
 
             // Generate thumbnail for UI
-            const thumbnailImage = await Jimp.read(processedBuffer);
-            thumbnailImage.resize(200, 200);
-            const thumbnailBuffer = await thumbnailImage.getBufferAsync(Jimp.MIME_JPEG);
+            const thumbnailBuffer = await sharp(processedBuffer)
+                .resize(200, 200, { fit: 'cover' })
+                .jpeg({ quality: 80 })
+                .toBuffer();
             
             const thumbnailBase64 = `data:image/jpeg;base64,${thumbnailBuffer.toString('base64')}`;
 
