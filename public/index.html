@@ -1069,7 +1069,7 @@
                     exportBtn.disabled = true;
                     exportBtn.textContent = 'Loading...';
 
-                    const apiResponse = await fetch('http://localhost:3000/api/current-images');
+                    const apiResponse = await fetch('/api/current-images');
                     
                     if (!apiResponse.ok) {
                         throw new Error('Cannot fetch image data');
@@ -1083,7 +1083,7 @@
 
                     exportBtn.textContent = 'Creating ZIP...';
 
-                    const response = await fetch('http://localhost:3000/export');
+                    const response = await fetch('/export');
                     
                     if (!response.ok) {
                         throw new Error('Cannot create ZIP file');
