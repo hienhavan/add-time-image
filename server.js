@@ -174,15 +174,15 @@ class ImageProcessor {
             const clampedScale = Math.max(1.0, Math.min(scaleFactor, 4.0)); // Clamp between 1.0x and 4.0x
             
             // Base layout values (dựa trên fontSize từ config)
-            const baseFontSize = this.config.font_size || 24; // Font size từ người dùng
+            const baseFontSize = this.config.font_size || 24; 
             const timeFontSize = Math.round(baseFontSize * 2.15 * clampedScale); 
             const dateFontSize = Math.round(baseFontSize * 1.25 * clampedScale);
             const yearFontSize = Math.round(baseFontSize * 1.25 * clampedScale);
-            const locationFontSize = Math.round(baseFontSize * 1.4 * clampedScale);
+            const locationFontSize = Math.round(baseFontSize * 1.15 * clampedScale);
             const gpsFontSize = Math.round(baseFontSize * 1.15 * clampedScale);
             const brandFontSize = Math.round(baseFontSize * 0.8 * clampedScale);
             const commitFontSize = Math.round(baseFontSize * 0.9 * clampedScale);
-            const spacing1 = Math.round(baseFontSize * -0.2 * clampedScale);
+            const spacing1 = Math.round(baseFontSize * -0.5 * clampedScale);
             const spacing2 = Math.round(baseFontSize * 2 * clampedScale);
             const spacing3 = Math.round(baseFontSize * 0.6 * clampedScale);
             const spacing4 = Math.round(baseFontSize * 0.4 * clampedScale);
@@ -267,21 +267,21 @@ class ImageProcessor {
                 svgText += `<line x1="${separatorX}" y1="${separatorTopY}" x2="${separatorX}" y2="${separatorBottomY}" stroke="${separatorColor}" stroke-width="${separatorThickness}" stroke-linecap="round" />`;
 
                 const timeY = separatorCenterY + Math.round(timeFontSize * 0.35); // Điều chỉnh để text căn giữa
-                svgText += `<text x="${timeX}" y="${timeY}" fill="#FFFFFF" font-size="${timeFontSize}" font-family="Arial, sans-serif" font-weight="bold" text-anchor="${textAnchor}">${timeStrFormatted}</text>`;
+                svgText += `<text x="${timeX}" y="${timeY}" fill="#FFFFFF" font-size="${timeFontSize}" font-family="Arial, sans-serif" font-weight="bold" stroke="black" stroke-width="1" stroke-opacity="1" text-anchor="${textAnchor}">${timeStrFormatted}</text>`;
 
                 // Date section: 2 lines (month/day on top, year below), cách | gap px
-                svgText += `<text x="${dateSectionX}" y="${dateBaselineY}" fill="#FFFFFF" font-size="${dateFontSize}" font-family="Arial, sans-serif" font-weight="normal" text-anchor="${textAnchor}">${dateMonthStr}</text>`;
-                svgText += `<text x="${dateSectionX}" y="${yearBaselineY}" fill="#FFFFFF" font-size="${yearFontSize}" font-family="Arial, sans-serif" font-weight="normal" text-anchor="${textAnchor}">${yearStr}</text>`;
+                svgText += `<text x="${dateSectionX}" y="${dateBaselineY}" fill="#ffffff" font-size="${dateFontSize}" font-family="Arial, sans-serif" font-weight="500" stroke="black" stroke-width="0.3" paint-order="stroke" stroke-opacity="1" text-anchor="${textAnchor}">${dateMonthStr}</text>`;
+                svgText += `<text x="${dateSectionX}" y="${yearBaselineY}" fill="#ffffff" font-size="${yearFontSize}" font-family="Arial, sans-serif" font-weight="500" stroke="black" stroke-width="0.3" paint-order="stroke" stroke-opacity="1" text-anchor="${textAnchor}">${yearStr}</text>`;
 
                 textY += Math.max(timeFontSize, dateFontSize + dateYearSpacing + yearFontSize) + spacing1; // Adjust for 2-line date section
 
                 // Hàng thứ hai: Location (không bold)
-                svgText += `<text x="${textX}" y="${textY}" fill="#FFFFFF" font-size="${locationFontSize}" font-family="Arial, sans-serif" font-weight="normal" text-anchor="${textAnchor}">${this.config.input_location || 'Location'}</text>`;
+                svgText += `<text x="${textX}" y="${textY}" fill="#FFFFFF" font-size="${locationFontSize}" font-family="Arial, sans-serif" font-weight="normal" stroke="black" stroke-width="0.3" stroke-opacity="1" text-anchor="${textAnchor}">${this.config.input_location || 'Location'}</text>`;
                 textY += spacing2; // Scaled spacing
 
                 // Hàng thứ ba: GPS coordinates (không bold)
                 gpsTextY = textY; // GPS text Y position
-                svgText += `<text x="${textX}" y="${textY}" fill="#FFFFFF" font-size="${gpsFontSize}" font-family="Arial, sans-serif" font-weight="normal" text-anchor="${textAnchor}">Lat: ${lat.toFixed(6)} Lon: ${lon.toFixed(6)}</text>`;
+                svgText += `<text x="${textX}" y="${textY}" fill="#FFFFFF" font-size="${gpsFontSize}" font-family="Arial, sans-serif" font-weight="normal" stroke="black" stroke-width="0.3" stroke-opacity="1" text-anchor="${textAnchor}">Lat: ${lat.toFixed(6)} Lon: ${lon.toFixed(6)}</text>`;
             }
 
             // Hàng thứ tư: Brand "Timemark 100% Chân thực" - luôn ở bottom-right

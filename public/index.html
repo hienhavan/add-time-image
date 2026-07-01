@@ -712,69 +712,9 @@
 <body>
     <div class="app-container">
         <div class="top-bar">
-            <div class="top-bar-left">
-                <div class="app-logo">Time<span>mark</span></div>
-            </div>
-            <div class="top-bar-right">
-                <button class="top-bar-btn">Templates</button>
-                <button class="top-bar-btn">Settings</button>
-                <button class="top-bar-btn">Help</button>
-            </div>
         </div>
-
         <div class="main-layout">
-            <aside class="sidebar">
-                <div class="sidebar-section">
-                    <div class="sidebar-title">Main</div>
-                    <div class="sidebar-item active">
-                        <span class="sidebar-item-icon">📷</span>
-                        <span>Camera</span>
-                    </div>
-                    <div class="sidebar-item">
-                        <span class="sidebar-item-icon">📁</span>
-                        <span>Gallery</span>
-                    </div>
-                    <div class="sidebar-item">
-                        <span class="sidebar-item-icon">🗺️</span>
-                        <span>Map View</span>
-                    </div>
-                </div>
-
-                <div class="sidebar-section">
-                    <div class="sidebar-title">Tools</div>
-                    <div class="sidebar-item">
-                        <span class="sidebar-item-icon">📝</span>
-                        <span>Notes</span>
-                    </div>
-                    <div class="sidebar-item">
-                        <span class="sidebar-item-icon">🏷️</span>
-                        <span>Tags</span>
-                    </div>
-                    <div class="sidebar-item">
-                        <span class="sidebar-item-icon">📊</span>
-                        <span>Reports</span>
-                    </div>
-                </div>
-
-                <div class="sidebar-section">
-                    <div class="sidebar-title">Account</div>
-                    <div class="sidebar-item">
-                        <span class="sidebar-item-icon">☁️</span>
-                        <span>Cloud Sync</span>
-                    </div>
-                    <div class="sidebar-item">
-                        <span class="sidebar-item-icon">👤</span>
-                        <span>Profile</span>
-                    </div>
-                </div>
-            </aside>
-
             <main class="content-area">
-                <div class="page-header">
-                    <h1 class="page-title">Timestamp Camera</h1>
-                    <p class="page-subtitle">Add GPS coordinates and timestamp to your photos</p>
-                </div>
-
                 <div class="upload-zone" id="dropZone">
                     <div class="upload-icon">📁</div>
                     <h3>Drop images here or click to browse</h3>
@@ -820,11 +760,10 @@
                         <div class="form-group">
                             <label>Detection Mode</label>
                             <select id="detectionModeSelect">
-                                <option value="simple">🔥 Simple Mode (Aggressive)</option>
-                                <option value="fast">⚡ Fast Mode (Regex)</option>
-                                <option value="ai" selected>🤖 AI Mode (OCR)</option>
+                                <option value="simple">🔥</option>
+                                <option value="fast">⚡</option>
+                                <option value="ai" selected>🤖</option>
                             </select>
-                            <small>Simple: ~2-3s | Fast: ~1-2s | AI: ~3-5s</small>
                         </div>
                     </div>
 
@@ -877,9 +816,6 @@
                     <div class="results-grid" id="resultsGrid"></div>
                     
                     <div class="export-bar">
-                        <div class="export-info">
-                            <strong>Ready to export</strong> • Processed images available for download
-                        </div>
                         <div style="display: flex; align-items: center; gap: 10px;">
                             <div id="zipFilenameContainer" style="display: none;">
                                 <input type="text" id="zipFilenameInput" 
@@ -1174,7 +1110,7 @@
                 
                 // Update button text based on mode
                 const exportBtn = document.getElementById('exportBtn');
-                exportBtn.textContent = this.uploadMode === 'file' ? '📥 Download Images' : '📥 Download ZIP';
+                exportBtn.textContent = this.uploadMode === 'file' ? 'Download Images' : 'Download ZIP';
             }
 
             async exportLog() {
@@ -1306,7 +1242,7 @@
                             console.warn('Directory picker failed:', dirError);
                             if (dirError.name === 'AbortError') {
                                 // User cancelled folder selection, don't auto-download
-                                exportBtn.textContent = '📥 Download ZIP';
+                                exportBtn.textContent = '📥 Download';
                                 exportBtn.disabled = false;
                                 this.showNotification('Folder selection cancelled. Please try again.', 'error');
                                 return;
