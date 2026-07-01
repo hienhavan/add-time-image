@@ -175,7 +175,7 @@ class ImageProcessor {
             
             // Base layout values (dựa trên fontSize từ config)
             const baseFontSize = this.config.font_size || 24; // Font size từ người dùng
-            const timeFontSize = Math.round(baseFontSize * 2.2 * clampedScale); // Giờ to hơn
+            const timeFontSize = Math.round(baseFontSize * 2.15 * clampedScale); 
             const dateFontSize = Math.round(baseFontSize * 1.25 * clampedScale);
             const yearFontSize = Math.round(baseFontSize * 1.25 * clampedScale);
             const locationFontSize = Math.round(baseFontSize * 1.4 * clampedScale);
@@ -474,9 +474,10 @@ app.post('/process', upload.array('images'), async (req, res) => {
 });
 
 // Export processed images as ZIP
-app.get('/export', async (req, res) => {
+app.post('/export', express.json(), async (req, res) => {
     try {
-        console.log('Export request received');
+        const { newFilenames = {}, zipFilename } = req.body;
+        console.log('Export request received with custom filenames');
         
         if (!fs.existsSync(outputDir)) {
             console.log('Output directory does not exist');
@@ -502,9 +503,9 @@ app.get('/export', async (req, res) => {
         // Create ZIP archive
         const archive = archiver('zip', { zlib: { level: 9 } });
         
-        // Set response headers
+        // Set response headers with custom ZIP filename
         const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
-        const filename = `processed_images_${timestamp}.zip`;
+        const filename = zipFilename ? `${zipFilename}.zip` : `processed_images_${timestamp}.zip`;
         
         res.setHeader('Content-Type', 'application/zip');
         res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
@@ -524,27 +525,40 @@ app.get('/export', async (req, res) => {
         // Pipe archive to response
         archive.pipe(res);
 
-        // Add files to archive with original filenames
-        files.forEach(file => {
+        // Add files to archive with new filenames if provided
+        const imageList = [];
+        console.log('Available newFilenames:', newFilenames);
+        console.log('File mapping:', Array.from(fileMapping.entries()));
+        
+        files.forEach((file) => {
             const filePath = path.join(outputDir, file);
             const originalName = fileMapping.get(file) || file;
-            console.log(`Adding file to archive: ${file} -> ${originalName}`);
-            archive.file(filePath, { name: originalName });
+            let newName = newFilenames[originalName] || originalName;
+            
+            // Ensure the new filename has the correct extension
+            const ext = path.extname(file);
+            if (!newName.endsWith(ext)) {
+                newName = newName + ext;
+            }
+            
+            console.log(`Processing file: ${file}, originalName: ${originalName}, newName: ${newName}`);
+            console.log(`File path exists: ${fs.existsSync(filePath)}`);
+            
+            if (!fs.existsSync(filePath)) {
+                console.error(`File not found: ${filePath}`);
+                return;
+            }
+            
+            archive.file(filePath, { name: newName });
+            
+            imageList.push({
+                processed: file,
+                original: originalName,
+                new: newName
+            });
         });
 
-        // Add processing log
-        const logData = {
-            exportTime: new Date().toISOString(),
-            totalImages: files.length,
-            imageList: files.map(f => ({
-                processed: f,
-                original: fileMapping.get(f) || f
-            }))
-        };
-        
-        archive.append(JSON.stringify(logData, null, 2), { name: 'processing_log.json' });
-
-        // Finalize archive
+        // Finalize archive (removed processing_log.json)
         archive.finalize();
 
     } catch (error) {

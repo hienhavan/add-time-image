@@ -644,6 +644,40 @@
             }
         }
 
+        .notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 15px 20px;
+            border-radius: 8px;
+            color: white;
+            font-weight: 500;
+            z-index: 99999;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            animation: slideIn 0.3s ease-out;
+            max-width: 350px;
+            transition: opacity 0.3s ease-out, transform 0.3s ease-out;
+        }
+
+        .notification.success {
+            background: #10b981;
+        }
+
+        .notification.error {
+            background: #ef4444;
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
         @media (max-width: 768px) {
             .main-layout {
                 flex-direction: column;
@@ -745,7 +779,12 @@
                     <div class="upload-icon">📁</div>
                     <h3>Drop images here or click to browse</h3>
                     <p>Support JPG, PNG formats • Batch processing</p>
-                    <input type="file" class="file-input" id="folderInput" webkitdirectory directory multiple>
+                    <input type="file" class="file-input" id="fileInput" multiple accept="image/*">
+                    <input type="file" class="file-input" id="folderInput" webkitdirectory directory multiple style="display: none;">
+                    <div style="margin-top: 15px; display: flex; gap: 10px; justify-content: center;">
+                        <button id="selectFilesBtn" class="btn btn-primary" style="padding: 8px 16px; font-size: 0.9em;">📁 Select Files</button>
+                        <button id="selectFolderBtn" class="btn btn-secondary" style="padding: 8px 16px; font-size: 0.9em; background: #6c757d; border: none; color: white; border-radius: 6px; cursor: pointer;">📂 Select Folder</button>
+                    </div>
                 </div>
 
                 <div class="config-grid">
@@ -841,12 +880,17 @@
                         <div class="export-info">
                             <strong>Ready to export</strong> • Processed images available for download
                         </div>
-                        <div>
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            <div id="zipFilenameContainer" style="display: none;">
+                                <input type="text" id="zipFilenameInput" 
+                                       placeholder="Enter ZIP filename" 
+                                       style="padding: 8px 12px; border: 1px solid #ddd; border-radius: 6px; font-size: 0.9em; width: 200px;">
+                            </div>
                             <label style="display: inline-flex; align-items: center; gap: 8px; margin-right: 15px; cursor: pointer;">
                                 <input type="checkbox" id="selectFolderCheckbox">
                                 <span style="font-size: 0.85em; color: #666;">Select folder</span>
                             </label>
-                            <button class="btn-export" id="exportBtn">📥 Download ZIP</button>
+                            <button class="btn-export" id="exportBtn">📥 Download</button>
                         </div>
                     </div>
                 </div>
@@ -909,22 +953,77 @@
                 this.selectedFiles = [];
                 this.selectedPosition = 'bottom-left';
                 this.processingResults = [];
+                this.uploadMode = 'file'; // 'file' or 'folder'
                 this.initEventListeners();
+            }
+
+            showNotification(message, type = 'success') {
+                const notification = document.createElement('div');
+                notification.className = `notification ${type}`;
+                notification.textContent = message;
+                document.body.appendChild(notification);
+
+                setTimeout(() => {
+                    notification.style.opacity = '0';
+                    notification.style.transform = 'translateX(100%)';
+                    setTimeout(() => notification.remove(), 300);
+                }, 3000);
+            }
+
+            updateUIForMode() {
+                const zipFilenameContainer = document.getElementById('zipFilenameContainer');
+                if (zipFilenameContainer) {
+                    zipFilenameContainer.style.display = this.uploadMode === 'folder' ? 'block' : 'none';
+                }
             }
 
             initEventListeners() {
                 const dropZone = document.getElementById('dropZone');
+                const fileInput = document.getElementById('fileInput');
                 const folderInput = document.getElementById('folderInput');
+                const selectFilesBtn = document.getElementById('selectFilesBtn');
+                const selectFolderBtn = document.getElementById('selectFolderBtn');
                 const removeGpsBtn = document.getElementById('removeGpsBtn');
                 const addGpsBtn = document.getElementById('addGpsBtn');
                 const exportBtn = document.getElementById('exportBtn');
 
-                dropZone.addEventListener('click', () => folderInput.click());
+                dropZone.addEventListener('click', () => fileInput.click());
                 dropZone.addEventListener('dragover', this.handleDragOver.bind(this));
                 dropZone.addEventListener('dragleave', this.handleDragLeave.bind(this));
                 dropZone.addEventListener('drop', this.handleDrop.bind(this));
 
+                fileInput.addEventListener('change', this.handleFileSelect.bind(this));
                 folderInput.addEventListener('change', this.handleFileSelect.bind(this));
+
+                selectFilesBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    this.uploadMode = 'file';
+                    this.updateUIForMode();
+                    fileInput.click();
+                });
+
+                selectFolderBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    e.preventDefault();
+                    this.uploadMode = 'folder';
+                    this.updateUIForMode();
+                    
+                    // Create temporary folder input
+                    const tempFolderInput = document.createElement('input');
+                    tempFolderInput.type = 'file';
+                    tempFolderInput.webkitdirectory = true;
+                    tempFolderInput.directory = true;
+                    tempFolderInput.multiple = true;
+                    tempFolderInput.style.display = 'none';
+                    document.body.appendChild(tempFolderInput);
+                    
+                    tempFolderInput.addEventListener('change', (event) => {
+                        this.handleFileSelect(event);
+                        document.body.removeChild(tempFolderInput);
+                    });
+                    
+                    tempFolderInput.click();
+                });
 
                 removeGpsBtn.addEventListener('click', () => this.processImages('remove'));
                 addGpsBtn.addEventListener('click', () => this.processImages('add'));
@@ -984,7 +1083,7 @@
 
             async processImages(action) {
                 if (this.selectedFiles.length === 0) {
-                    alert('Please select images first!');
+                    this.showNotification('Please select images first!', 'error');
                     return;
                 }
 
@@ -1021,11 +1120,12 @@
                     if (result.success) {
                         this.processingResults = result.results;
                         this.displayResults();
+                        this.showNotification('Images processed successfully!', 'success');
                     } else {
-                        alert('Processing error: ' + result.error);
+                        this.showNotification('Processing error: ' + result.error, 'error');
                     }
                 } catch (error) {
-                    alert('Connection error: ' + error.message);
+                    this.showNotification('Connection error: ' + error.message, 'error');
                 } finally {
                     loadingOverlay.classList.remove('active');
                 }
@@ -1045,21 +1145,36 @@
                     const displayName = result.originalFilename || result.filename || result.name;
                     const statusClass = result.success ? 'success' : 'error';
                     
+                    const filenameInputHtml = 
+                        `<input type="text" class="filename-input" 
+                               value="${result.newFilename || displayName}" 
+                               data-original="${displayName}" 
+                               placeholder="Enter new filename">`;
+                    
                     resultCard.innerHTML = `
                         <img src="${result.thumbnail}" alt="${displayName}" class="result-thumb">
                         <div class="result-info">
-                            <div class="result-name">${displayName}</div>
+                            <div class="result-name">Original: ${displayName}</div>
                             <div class="result-status ${statusClass}">${result.status}</div>
+                            ${filenameInputHtml}
                         </div>
                     `;
                     
-                    resultCard.addEventListener('click', () => this.showImageDetails(result));
+                    resultCard.addEventListener('click', (e) => {
+                        if (!e.target.classList.contains('filename-input')) {
+                            this.showImageDetails(result);
+                        }
+                    });
                     resultsGrid.appendChild(resultCard);
                 });
                 
                 resultsCount.textContent = `${this.processingResults.length} images processed`;
                 resultsSection.style.display = 'block';
                 document.getElementById('exportBtn').disabled = false;
+                
+                // Update button text based on mode
+                const exportBtn = document.getElementById('exportBtn');
+                exportBtn.textContent = this.uploadMode === 'file' ? '📥 Download Images' : '📥 Download ZIP';
             }
 
             async exportLog() {
@@ -1068,6 +1183,71 @@
                     const selectFolderCheckbox = document.getElementById('selectFolderCheckbox');
                     exportBtn.disabled = true;
                     exportBtn.textContent = 'Loading...';
+
+                    // File mode: download individual images
+                    if (this.uploadMode === 'file') {
+                        const apiResponse = await fetch('/api/current-images');
+                        
+                        if (!apiResponse.ok) {
+                            throw new Error('Cannot fetch image data');
+                        }
+
+                        const apiResult = await apiResponse.json();
+                        
+                        if (!apiResult.success) {
+                            throw new Error(apiResult.error || 'Error fetching image data');
+                        }
+
+                        const files = apiResult.files || [];
+                        let downloadedCount = 0;
+
+                        for (const fileData of files) {
+                            try {
+                                const processedFilename = fileData.processed;
+                                const originalFilename = fileData.original;
+                                
+                                // Get new filename from input if exists
+                                const filenameInput = document.querySelector(`.filename-input[data-original="${originalFilename}"]`);
+                                const downloadName = filenameInput ? filenameInput.value : processedFilename;
+                                
+                                const response = await fetch(`/output/${processedFilename}`);
+                                const blob = await response.blob();
+                                const url = URL.createObjectURL(blob);
+                                const a = document.createElement('a');
+                                a.href = url;
+                                a.download = downloadName;
+                                a.click();
+                                URL.revokeObjectURL(url);
+                                downloadedCount++;
+                            } catch (err) {
+                                console.error(`Error downloading file:`, err);
+                            }
+                        }
+
+                        exportBtn.textContent = 'Downloaded!';
+                        this.showNotification(`Downloaded ${downloadedCount}/${files.length} images successfully!`, 'success');
+                        setTimeout(() => {
+                            exportBtn.textContent = this.uploadMode === 'file' ? '📥 Download Images' : '📥 Download ZIP';
+                            exportBtn.disabled = false;
+                        }, 2000);
+                        return;
+                    }
+
+                    // Folder mode: download ZIP
+                    // Collect new filenames from input fields
+                    const filenameInputs = document.querySelectorAll('.filename-input');
+                    const newFilenames = {};
+                    filenameInputs.forEach(input => {
+                        const originalName = input.dataset.original;
+                        const newName = input.value;
+                        console.log(`Mapping: ${originalName} -> ${newName}`);
+                        newFilenames[originalName] = newName;
+                    });
+                    console.log('All newFilenames:', newFilenames);
+
+                    // Get custom ZIP filename
+                    const zipFilenameInput = document.getElementById('zipFilenameInput');
+                    const customZipName = zipFilenameInput ? zipFilenameInput.value : `processed_images_${Date.now()}`;
 
                     const apiResponse = await fetch('/api/current-images');
                     
@@ -1083,14 +1263,23 @@
 
                     exportBtn.textContent = 'Creating ZIP...';
 
-                    const response = await fetch('/export');
+                    const response = await fetch('/export', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            newFilenames: newFilenames,
+                            zipFilename: customZipName
+                        })
+                    });
                     
                     if (!response.ok) {
                         throw new Error('Cannot create ZIP file');
                     }
 
                     const contentDisposition = response.headers.get('Content-Disposition');
-                    let filename = `processed_images_${Date.now()}.zip`;
+                    let filename = `${customZipName}.zip`;
                     
                     if (contentDisposition) {
                         const filenameMatch = contentDisposition.match(/filename="(.+)"/);
@@ -1115,10 +1304,17 @@
                             return;
                         } catch (dirError) {
                             console.warn('Directory picker failed:', dirError);
-                            alert('Cannot select folder. Will download to default location.');
+                            if (dirError.name === 'AbortError') {
+                                // User cancelled folder selection, don't auto-download
+                                exportBtn.textContent = '📥 Download ZIP';
+                                exportBtn.disabled = false;
+                                this.showNotification('Folder selection cancelled. Please try again.', 'error');
+                                return;
+                            }
+                            this.showNotification('Cannot select folder. Will download to default location.', 'error');
                         }
                     } else if (selectFolderCheckbox.checked && !('showDirectoryPicker' in window)) {
-                        alert('Browser does not support folder selection. Will download to default location.');
+                        this.showNotification('Browser does not support folder selection. Will download to default location.', 'error');
                     }
 
                     const url = URL.createObjectURL(blob);
@@ -1129,6 +1325,7 @@
                     URL.revokeObjectURL(url);
 
                     exportBtn.textContent = 'Downloaded!';
+                    this.showNotification('Download completed successfully!', 'success');
                     setTimeout(() => {
                         exportBtn.textContent = '📥 Download ZIP';
                         exportBtn.disabled = false;
@@ -1136,7 +1333,7 @@
 
                 } catch (error) {
                     console.error('Export error:', error);
-                    alert('Export error: ' + error.message);
+                    this.showNotification('Export error: ' + error.message, 'error');
                     
                     const exportBtn = document.getElementById('exportBtn');
                     exportBtn.textContent = '📥 Download ZIP';
